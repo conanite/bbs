@@ -7,8 +7,10 @@ export async function main(ns) {
 
 	var workOnly  = (ns.args[0] == "work"     );
 	var nameOnly  = (ns.args[0] == "names"    );
+	var nesting   = (ns.args[0] == "nesting"  );
 	var attacks   = (ns.args[0] == "attacks"  );
 	var noattacks = (ns.args[0] == "noattacks");
+	var mem       = (ns.args[0] == "mem"      );
 	var visited = { };
 	var attackers = getAttackers(ns);
 
@@ -43,7 +45,7 @@ export async function main(ns) {
 
 
 				if (workOnly) {
-					ns.tprint(interestingMsg, "Server ", path, "/", srv, (s.hasAdminRights ? " ✓" : ""));
+					ns.tprint(interestingMsg, "Server ", srv, (s.hasAdminRights ? " ✓" : ""));
 					for (let process of ns.ps(srv)) {
 						var income = ns.getScriptIncome(process.filename, srv, ...process.args);
 						ns.tprint("  process: ", process.filename, " args ", process.args, " threads ", process.threads, ", income : ", num(income));
@@ -53,27 +55,30 @@ export async function main(ns) {
 				} else if (attacks) {
 					var hackers = attackers[srv];
 					if (hackers != null) {
-						ns.tprint(interestingMsg, "Server ", path, "/", srv, (s.hasAdminRights ? " ✓" : ""));
+						ns.tprint(interestingMsg, "Server ", srv, (s.hasAdminRights ? " ✓" : ""));
 						ns.tprint("  Under attack from ", hackers);
 						ns.tprint("")
 					}
 
 				} else if (noattacks) {
 					var hackers = attackers[srv];
-					if (hackers == null) {
-						ns.tprint(interestingMsg, "Server ", path, "/", srv, (s.hasAdminRights ? " ✓" : ""));
-						ns.tprint("  money : ", num(money), " of max ", num(s.moneyMax) );
-						ns.tprint("  security : ", sec, " of min ", securityMin );
-						ns.tprint("  growth param : ", s.serverGrowth, " hacking prob", "??", ", cores : ", s.cpuCores, ", ram : used ", usedRam, "G of max ", s.maxRam, "G (available ", (s.maxRam - usedRam), "G)");
-						ns.tprint("  Min hacking skill ", s.requiredHackingSkill, " root: ", s.hasAdminRights, " backdoor: ", s.backdoorInstalled, " open ports for nuke: ", s.numOpenPortsRequired);
-						ns.tprint("")
+					if (hackers == null && s.moneyMax > 0 && s.serverGrowth > 10 && s.hasAdminRights) {
+						ns.tprint(interestingMsg, "Server ", srv, (s.hasAdminRights ? " ✓" : ""), " money : ", num(money), " of max ", num(s.moneyMax), ", security : ", sec, " of min ", securityMin, ", growth param : ", s.serverGrowth);
+					}
+
+				} else if (mem) {
+					if (s.hasAdminRights) {
+    					ns.tprint(srv, " : used ", usedRam, "G of max ", s.maxRam, "G (available ", (s.maxRam - usedRam), "G)");
 					}
 
 				} else if (nameOnly) {
+					ns.tprint(interestingMsg, "Server ", srv, (s.hasAdminRights ? " ✓" : ""));
+
+				} else if (nesting) {
 					ns.tprint(interestingMsg, "Server ", path, "/", srv, (s.hasAdminRights ? " ✓" : ""));
 
 				} else {
-					ns.tprint(interestingMsg, "Server ", path, "/", srv, (s.hasAdminRights ? " ✓" : ""));
+					ns.tprint(interestingMsg, "Server ", srv, (s.hasAdminRights ? " ✓" : ""));
 					ns.tprint("  money : ", num(money), " of max ", num(s.moneyMax) );
 					ns.tprint("  security : ", sec, " of min ", securityMin );
 					ns.tprint("  growth param : ", s.serverGrowth, " hacking prob", "??", ", cores : ", s.cpuCores, ", ram : used ", usedRam, "G of max ", s.maxRam, "G (available ", (s.maxRam - usedRam), "G)");
@@ -104,4 +109,10 @@ export async function main(ns) {
 	}
 
 	netscan("home", "");
+}
+
+
+
+export function autocomplete(data, args) {
+	return ["attacks", "noattacks", "mem", "work", "names", "nesting"];
 }

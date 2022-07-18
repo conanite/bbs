@@ -1,12 +1,12 @@
-import * as lib from 'lib.js'
+import { deleteUnusedServers, showPurchasedServerWork, buyServer } from '/lib.js'
 
 /** @param {NS} ns */
 export async function main(ns) {
 	if (ns.args[0] == 'sweep') {
-		lib.deleteUnusedServers(ns);
+		deleteUnusedServers(ns);
 		ns.exit();
 	} else if (ns.args[0] == "work") {
-		lib.showPurchasedServerWork(ns);
+		showPurchasedServerWork(ns);
 	}
 
 	if (ns.args.length < 2) {
@@ -16,7 +16,6 @@ export async function main(ns) {
 		ns.exit();
 	}
 
-    
 	var name = ns.args[0];
 
     if (name == "kill") {
@@ -26,7 +25,7 @@ export async function main(ns) {
 		ns.tprint("killed purchased server ", target);
 	} else {
 	    var size = parseInt(ns.args[1]);
-    	lib.buyServer(ns, name, size);
+    	buyServer(ns, name, size);
 	}
 
 }
