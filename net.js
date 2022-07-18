@@ -5,6 +5,9 @@ import { getAttackers } from "/lib.js"
 export async function main(ns) {
     function num(n) { return ns.nFormat(n, "$0.000a"); }
 
+    var frm = ns.formulas;
+	var hf  = frm.hacking;
+
 	var workOnly  = (ns.args[0] == "work"     );
 	var nameOnly  = (ns.args[0] == "names"    );
 	var nesting   = (ns.args[0] == "nesting"  );
@@ -21,6 +24,7 @@ export async function main(ns) {
     if (ns.fileExists("relaySMTP.exe", "home")) { portCount++; }
     if (ns.fileExists("HTTPWorm.exe" , "home")) { portCount++; }
     if (ns.fileExists("SQLInject.exe", "home")) { portCount++; }
+    if (!ns.fileExists("Formulas.exe" , "home")) { hf = { hackChance: function(a, b) { return null; }}; }
 
     function num(n) {
 		return ns.nFormat(n, "$0.000a");
@@ -61,9 +65,15 @@ export async function main(ns) {
 					}
 
 				} else if (noattacks) {
+					var chance  = hf.hackChance(s, ns.getPlayer());
 					var hackers = attackers[srv];
 					if (hackers == null && s.moneyMax > 0 && s.serverGrowth > 10 && s.hasAdminRights) {
-						ns.tprint(interestingMsg, "Server ", srv, (s.hasAdminRights ? " ✓" : ""), " money : ", num(money), " of max ", num(s.moneyMax), ", security : ", sec, " of min ", securityMin, ", growth param : ", s.serverGrowth);
+						var m0 = "Server " + srv + (s.hasAdminRights ? " ✓" : "");
+						var m1 = "money : " + num(money) + " of max " + num(s.moneyMax);
+						var m2 = "security : " + sec + " of min " + securityMin;
+						var m3 = "growth param : " + s.serverGrowth + ", H%=" + chance;
+
+						ns.tprint(m0, " | ", m1, " | ",  m2, " | ",  m3);
 					}
 
 				} else if (mem) {
