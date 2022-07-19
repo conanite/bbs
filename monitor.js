@@ -7,7 +7,6 @@ export async function main(ns) {
 	ns.disableLog("sleep");
 
 	var params = ns.flags([["target", "n00dles"], ["maxram", "max"], ["attackfrom", ""], ["minmon", 0.8]])
-	ns.tprint("monitor params are ", params);
 	ns.print("monitor params are ", params);
 
 	var target = params.target;
@@ -32,10 +31,8 @@ export async function main(ns) {
 	var availableRam = (maxRam - usedRam);
 	if (params.maxram != "max") {
 		var ramlimit = parseInt(params.maxram);
-		ns.tprint("ramlimit is ", ramlimit);
 		if (ramlimit < availableRam) { availableRam = ramlimit; }
 	}
-	ns.tprint("availableRam is ", availableRam);
 
 	var hackRam = ns.getScriptRam(hackScript);
 	var weakRam = ns.getScriptRam(weakScript);

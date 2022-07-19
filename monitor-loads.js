@@ -77,3 +77,8 @@ export async function main(ns) {
 		throw new Error("arg should be attackers or targets, got ", ns.args);
 	}
 }
+
+
+export function autocomplete(data, args) {
+	return ["attackers", "targets"];
+}

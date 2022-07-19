@@ -17,7 +17,7 @@ export async function waitForProcess(ns, millis, pid) {
 */
 export async function deployAttack(ns, monserver, target, maxram, hgwserver) {
   // ns.killall(attacker);
-    await deployScripts(ns, monserver);
+  await deployScripts(ns, monserver);
   var script = "monitor.js"
 
   var maxram = (maxram == null) ? "max" : maxram;
@@ -44,15 +44,15 @@ export async function deployScripts(ns, dest) {
 export function crack(ns, target) {
   var s = ns.getServer(target);
   if (s.hasAdminRights) { return; }
-    ns.print("crack target is ", target);
+  ns.print("crack target is ", target);
 
-    if (ns.fileExists("BruteSSH.exe" , "home")) { ns.brutessh(target);  }
-    if (ns.fileExists("FTPCrack.exe" , "home")) { ns.ftpcrack(target);  }
-    if (ns.fileExists("relaySMTP.exe", "home")) { ns.relaysmtp(target); }
-    if (ns.fileExists("HTTPWorm.exe" , "home")) { ns.httpworm(target);  }
-    if (ns.fileExists("SQLInject.exe", "home")) { ns.sqlinject(target); }
+  if (ns.fileExists("BruteSSH.exe", "home")) { ns.brutessh(target); }
+  if (ns.fileExists("FTPCrack.exe", "home")) { ns.ftpcrack(target); }
+  if (ns.fileExists("relaySMTP.exe", "home")) { ns.relaysmtp(target); }
+  if (ns.fileExists("HTTPWorm.exe", "home")) { ns.httpworm(target); }
+  if (ns.fileExists("SQLInject.exe", "home")) { ns.sqlinject(target); }
 
-    ns.nuke(target);
+  ns.nuke(target);
 
   s = ns.getServer(target); // need to update it
   if (s.hasAdminRights) {
@@ -69,12 +69,12 @@ export function isCrackable(ns, target) {
   var s = ns.getServer(target);
   if (s.hasAdminRights) { return false; }
 
-    var crackablePorts = 0;
-    if (ns.fileExists("BruteSSH.exe" , "home")) { crackablePorts++; }
-    if (ns.fileExists("FTPCrack.exe" , "home")) { crackablePorts++; }
-    if (ns.fileExists("relaySMTP.exe", "home")) { crackablePorts++; }
-    if (ns.fileExists("HTTPWorm.exe" , "home")) { crackablePorts++; }
-    if (ns.fileExists("SQLInject.exe", "home")) { crackablePorts++; }
+  var crackablePorts = 0;
+  if (ns.fileExists("BruteSSH.exe", "home")) { crackablePorts++; }
+  if (ns.fileExists("FTPCrack.exe", "home")) { crackablePorts++; }
+  if (ns.fileExists("relaySMTP.exe", "home")) { crackablePorts++; }
+  if (ns.fileExists("HTTPWorm.exe", "home")) { crackablePorts++; }
+  if (ns.fileExists("SQLInject.exe", "home")) { crackablePorts++; }
 
   var s = ns.getServer(target);
   var hackable = s.requiredHackingSkill <= ns.getHackingLevel();
@@ -102,7 +102,7 @@ export function buyServer(ns, name, size) {
     ns.tprint("cost of server size ", size, " (", ram, "G RAM) is ", cost);
     return { cost: cost }
   } else {
-      ns.tprint("purchasing server with base name ", name, " for ", cost);
+    ns.tprint("purchasing server with base name ", name, " for ", cost);
     if (name == null || name == '') { throw new Error("missing name for new server"); }
     var s = ns.purchaseServer(name + "-" + size, ram);
     ns.tprint("purchased ", s, " for ", cost);
@@ -115,12 +115,12 @@ export function buyServer(ns, name, size) {
 export function deleteUnusedServers(ns) {
   var bought = ns.getPurchasedServers();
 
-    var deleted = [];
+  var deleted = [];
 
   for (let s of bought) {
     if (ns.ps(s).length == 0) {
-        ns.tprint("Deleting server : ", s);
-            ns.deleteServer(s)
+      ns.tprint("Deleting server : ", s);
+      ns.deleteServer(s)
       deleted.push(s);
     }
   }
@@ -137,26 +137,26 @@ export function deleteUnusedServers(ns) {
 export function getMinThreadsToWeaken(ns, target) {
   var s = ns.getServer(target);
 
-    var max    = 1000000;
+  var max = 1000000;
   var thredz = max / 2;
-  var min    = 0;
+  var min = 0;
 
-    var currentDifficulty = s.hackDifficulty;
-  var minDifficulty     = s.minDifficulty;
-  var diff              = currentDifficulty - minDifficulty;
+  var currentDifficulty = s.hackDifficulty;
+  var minDifficulty = s.minDifficulty;
+  var diff = currentDifficulty - minDifficulty;
 
-    while (max - min > 1) {
-      var decrease = ns.weakenAnalyze(thredz);
-      if (decrease > diff) { // too many threads
-        max    = thredz;
-          thredz = thredz - ((thredz - min) / 2);
-      } else { // too few threads
-            min    = thredz;
+  while (max - min > 1) {
+    var decrease = ns.weakenAnalyze(thredz);
+    if (decrease > diff) { // too many threads
+      max = thredz;
+      thredz = thredz - ((thredz - min) / 2);
+    } else { // too few threads
+      min = thredz;
       thredz = thredz + ((max - thredz) / 2);
     }
   }
 
-    return Math.floor(thredz);
+  return Math.floor(thredz);
 }
 
 /*
@@ -168,18 +168,18 @@ export async function showPurchasedServerWork(ns, serverName) {
 
 /** @param {NS} ns */
 export function getAttackers(ns) {
-  var attackers = { };
+  var attackers = {};
 
-  var f = function(node) {
+  var f = function (node, ctl) {
     var s = node.name;
-    for(let process of ns.ps(s)) {
+    for (let process of ns.ps(s)) {
       if (process.filename == "monitor.js") {
         var flagi = process.args.indexOf("--target");
         var target = process.args[flagi + 1];
         if (target != "" && target != null) {
-            var already = attackers[target] || [];
-            already.push(s);
-            attackers[target] = already;
+          var already = attackers[target] || [];
+          already.push(s);
+          attackers[target] = already;
         }
       }
     }
@@ -195,15 +195,26 @@ export function getAttackers(ns) {
  *  @param {function} f - a function to call with each discovered server name
  */
 export function netTraverse(ns, f) {
+  var prune = false;
+  var quit = false;
+  var ctl = {
+    quit: function () { quit = true; },
+    prune: function () { prune = true; }
+  }
+
   var queue = [{ name: "home" }];
-  var visited = { };
-  while(queue.length > 0) {
+  var visited = {};
+  while (queue.length > 0 && !quit) {
     var s = queue.shift();
-    f(s);
-    for(let neighbour of ns.scan(s.name)) {
-      if (visited[neighbour] == null) {
-        visited[neighbour] = true;
-        queue.push({ name: neighbour, parent: s });
+    f(s, ctl);
+    if (prune) {
+      prune = false;
+    } else {
+      for (let neighbour of ns.scan(s.name)) {
+        if (visited[neighbour] == null) {
+          visited[neighbour] = true;
+          queue.push({ name: neighbour, parent: s });
+        }
       }
     }
   }

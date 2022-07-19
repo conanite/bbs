@@ -2,19 +2,23 @@ import { netTraverse } from "/lib.js"
 
 /** @param {NS} ns */
 export async function main(ns) {
-    var target = ns.args[0];
+	var target = ns.args[0];
 	var chain = null;
 
-	var f = function(node) {
-       if (node.name == target) { chain = node; };
-	   return false;
+	var f = function (node, ctl) {
+		if (node.name == target) {
+			chain = node;
+			ctl.quit();
+		};
 	}
 
-    netTraverse(ns, f);
-	
+	netTraverse(ns, f);
+
 	var connectCommand = "";
 	while (chain != null) {
-		connectCommand = "connect " + chain.name + " ; " + connectCommand;
+		if (chain.name != "home") {
+			connectCommand = "connect " + chain.name + " ; " + connectCommand;
+		}
 		chain = chain.parent;
 	}
 
