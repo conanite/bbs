@@ -51,17 +51,17 @@ export async function main(ns) {
 			}
 			node.launchThredz = thredz;
 			node.launchServer = s.hostname;
-			return ns.exec(scriptName,s.hostname,thredz,...args);
+			return ns.exec(scriptName, s.hostname, thredz, ...args);
 		}
 	}
 
 	/* @param {Server} server */
 	function nextStep(server) {
 		var s = server;
-		if (s.hasAdminRights) {
-			if (s.hackDifficulty > (1.1 * s.minDifficulty)) {
+		if (s.hasAdminRights && s.serverGrowth > 10) {
+			if (s.hackDifficulty > (1.1 * (2 + s.minDifficulty))) {
 				return "weak";
-			} else if (s.moneyAvailable < (0.9 * s.moneyMax)) {
+			} else if (s.moneyAvailable < (0.7 * s.moneyMax)) {
 				return "grow";
 			} else {
 				return "hack";
@@ -173,9 +173,9 @@ export async function main(ns) {
 				hackAmount = (moneyNow / s.moneyMax) * node.lastGrow;
 				node.hackmsg = " 1.1 too much, hack%=" + Math.floor(100 * (moneyNow / s.moneyMax));
 			}
-			if (hackAmount > moneyNow) { 
+			if (hackAmount > moneyNow) {
 				node.hackmsg = " still too much, hack%=" + Math.floor(100 * 0.5);
-				hackAmount = moneyNow * 0.5; 
+				hackAmount = moneyNow * 0.5;
 			}
 		} else {
 			node.hackmsg = " ?? last grow, hack%=" + Math.floor(100 * 0.5);
@@ -197,11 +197,6 @@ export async function main(ns) {
 		var s = node.server;
 		if (!s.hasAdminRights) { return; }
 		var nx = nextStep(s);
-		if (node.step == "grow" && nx != "grow") {
-			node.lastGrow = s.moneyAvailable - node.moneyWas;
-		} else if (node.step == "hack" && nx != "hack") {
-			node.lastHack = node.moneyWas - s.moneyAvailable;
-		}
 		node.step = nx;
 		if (nx == "weak") {
 			await weakStep(node);
@@ -218,8 +213,15 @@ export async function main(ns) {
 		   */
 	async function step(node) {
 		var pid = node.waitingForPid;
-		if (pid == null || !ns.isRunning(pid)) {
+		if (pid == null) {
+			await runNextStep(node);
+		} else if (!ns.isRunning(pid)) {
 			node.waitingForPid = null;
+			if (node.step == "grow") {
+				node.lastGrow = node.server.moneyAvailable - node.moneyWas;
+			} else if (node.step == "hack") {
+				node.lastHack = node.moneyWas - node.server.moneyAvailable;
+			}
 			await runNextStep(node);
 		}
 	}
