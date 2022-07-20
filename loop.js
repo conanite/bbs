@@ -43,7 +43,7 @@ export async function main(ns) {
 		var s = await findServerWithRam(ram);
 		if (s == null) {
 			if (thredz > 2) {
-				return await launch(node, scriptName, Math.floor(thredz / 2), ...args);
+				return await launch(node, scriptName, Math.floor((thredz - 1) * 0.9), ...args);
 			}
 		} else if (thredz >= 1) {
 			if (!ns.fileExists(scriptName, s.hostname)) {
