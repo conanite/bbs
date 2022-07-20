@@ -254,13 +254,9 @@ export async function main(ns) {
 	}
 
 	while (true) {
-		// ns.tprint("checkprograms")
 		checkPrograms();
-		// ns.tprint("traverse")
 		await netTraverse(ns, visitor);
-		// ns.tprint("write log")
 		rebuildLogs();
-		// ns.tprint("sleep")
-		await ns.sleep(2000);
+		await ns.sleep(200);
 	}
 }

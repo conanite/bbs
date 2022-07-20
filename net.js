@@ -15,7 +15,7 @@ export async function main(ns) {
 	var noattacks = (ns.args[0] == "noattacks");
 	var mem = (ns.args[0] == "mem");
 	var visited = {};
-	var attackers = getAttackers(ns);
+	var attackers = await getAttackers(ns);
 
 	var portCount = 0;
 
@@ -30,7 +30,7 @@ export async function main(ns) {
 		return ns.nFormat(n, "$0.000a");
 	}
 
-	function doScan(initial, path) {
+	async function doScan(initial, path) {
 		for (let srv of ns.scan(initial)) {
 			var s = ns.getServer(srv);
 			if (!s.purchasedByPlayer && !visited[srv]) {
@@ -96,7 +96,7 @@ export async function main(ns) {
 					ns.tprint("  security : ", sec, " of min ", securityMin);
 					ns.tprint("  growth param : ", s.serverGrowth, " hacking prob", "??", ", cores : ", s.cpuCores, ", ram : used ", usedRam, "G of max ", s.maxRam, "G (available ", (s.maxRam - usedRam), "G)");
 					ns.tprint("  Min hacking skill ", s.requiredHackingSkill, " root: ", s.hasAdminRights, " backdoor: ", s.backdoorInstalled, " open ports for nuke: ", s.numOpenPortsRequired);
-					for (let process of ns.ps(srv)) {
+					for (let process of await ns.ps(srv)) {
 						ns.tprint("  process: ", process.filename, " args ", process.args, " threads ", process.threads);
 					}
 					var hackers = attackers[srv];
@@ -107,20 +107,20 @@ export async function main(ns) {
 				}
 
 				if (s.hasAdminRights) {
-					netscan(srv, path + "/" + srv);
+					await netscan(srv, path + "/" + srv);
 				}
 			}
 		}
 	}
 
-	function netscan(initial, path) {
+	async function netscan(initial, path) {
 		if (visited[initial] == null) {
 			visited[initial] = true;
-			doScan(initial, path);
+			await doScan(initial, path);
 		}
 	}
 
-	netscan("home", "");
+	await netscan("home", "");
 }
 
 

@@ -4,20 +4,20 @@ import { crack, isCracked, isCrackable, netTraverse } from 'lib.js'
 export async function main(ns) {
     ns.disableLog("ALL");
     if (ns.args[0] == 'crackable') {
-        var f = function (node) {
+        var f = async function (node) {
             var target = node.name;
             if (!isCracked(ns, target) && isCrackable(ns, target)) {
-                crack(ns, target);
+                await crack(ns, target);
             }
         }
 
         while (true) {
-            netTraverse(ns, f);
+            await netTraverse(ns, f);
             await ns.sleep(1000);
         }
     } else {
         for (let target of ns.args) {
-            crack(ns, target);
+            await crack(ns, target);
         }
     }
 }

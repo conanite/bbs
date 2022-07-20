@@ -167,7 +167,7 @@ export async function showPurchasedServerWork(ns, serverName) {
 }
 
 /** @param {NS} ns */
-export function getAttackers(ns) {
+export async function getAttackers(ns) {
   var attackers = {};
 
   var f = function (node, ctl) {
@@ -185,7 +185,7 @@ export function getAttackers(ns) {
     }
   }
 
-  netTraverse(ns, f);
+  await netTraverse(ns, f);
 
   return attackers;
 }
