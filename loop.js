@@ -1,9 +1,14 @@
-import { netTraverse } from "/lib.js"
+import { netTraverse, getMinThreadsToWeaken } from "/lib.js"
 
 /** @param {NS} ns */
 export async function main(ns) {
 	function num(n) { return ns.nFormat(n, "$0.000a"); }
 	function dif(n) { return ns.nFormat(n, "0"); }
+	function sec(n) { return ns.nFormat(n, "0.000"); }
+
+	const hackScript = "hack-target.js";
+	const weakScript = "weak-target.js";
+	const growScript = "grow-target.js";
 
 	ns.tail();
 	ns.disableLog("ALL");
@@ -20,7 +25,7 @@ export async function main(ns) {
 				found = s;
 			}
 		}
-		netTraverse(f);
+		netTraverse(ns, f);
 		return found;
 	}
 
@@ -33,28 +38,37 @@ export async function main(ns) {
 	 * @return {number} - the pid of the process if created
 	 *
 	 */
-	function launch(scriptName, thredz) {
+	function launch(scriptName, thredz, ...args) {
 		var ram = requiredRamForScript(scriptName, thredz);
 		var s = findServerWithRam(ram);
-		if (!ns.fileExists(scriptName, s.name)) {
-			ns.scp(scriptName, "home", s.name);
+		if (s == null && thredz > 2) {
+			return launch(scriptName, Math.floor(thredz / 2));
+		} else if (thredz > 0) {
+			if (!ns.fileExists(scriptName, s.hostname)) {
+				ns.scp(scriptName, "home", s.hostname);
+			}
+			return ns.exec(scriptName, s.hostname, thredz, ...args);
 		}
-
-		return ns.exec(scriptName, s.name, thredz);
 	}
 
+	/* @param {Server} server */
 	function nextStep(server) {
 		var s = server;
-		if (s.hackDifficulty > (1.1 * s.minDifficulty)) {
-			return "weak";
-		} else if (s.moneyAvailable < (0.9 * s.moneyMax)) {
-			return "grow";
-		} else {
-			return "hack";
+		if (s.hasAdminRights) {
+			if (s.hackDifficulty > (1.1 * s.minDifficulty)) {
+				return "weak";
+			} else if (s.moneyAvailable < (0.9 * s.moneyMax)) {
+				return "grow";
+			} else {
+				return "hack";
+			}
 		}
 	}
 
-	function serverStatus(server) {
+	/* @param {Server} server 
+	 * @param {Node} node
+	 */
+	function serverStatus(node, server) {
 		var check = "  "
 		if (server.hasAdminRights) {
 			check = "✓ "
@@ -74,7 +88,21 @@ export async function main(ns) {
 
 		check += (num(server.moneyAvailable) + "/" + num(server.moneyMax)).padEnd(21, ' ');
 		check += ("D" + dif(server.hackDifficulty) + "/" + dif(server.minDifficulty)).padEnd(8, ' ');
-		check += " " + nextStep(server);
+		if (node.step != null) {
+			check += " " + node.step + " ";
+			if (node.stepStarted != null && node.stepWait != null) {
+				var elapsed = new Date() - node.stepStarted;
+				var remaining = node.stepWait - elapsed;
+				check += ("" + sec(remaining / 1000)).padStart(10, ' ');
+				check += ("thr:" + node.stepThredz).padStart(12, ' ');
+			}
+		}
+		if (node.lastGrow != null) {
+			check += " LGR" + num(node.lastGrow).padStart(12, ' ');
+		}
+		if (node.lastHack != null) {
+			check += " LHK" + num(node.lastHack).padStart(12, ' ');
+		}
 		return check;
 	}
 
@@ -82,6 +110,81 @@ export async function main(ns) {
 		constructor(name) {
 			this.name = name;
 			this.check = "";
+		}
+	}
+
+	function thr(n) {
+		if (n < 1) {
+			return 1;
+		} else {
+			return Math.floor(n);
+		}
+	}
+	function weakStep(node) {
+		var s = node.server;
+		var needThredz = thr(getMinThreadsToWeaken(ns, node.name));
+		node.stepStarted = new Date();
+		node.stepWait = ns.getWeakenTime(node.name);
+		node.stepThredz = needThredz;
+		node.weakWas = s.hackDifficulty;
+		node.waitingForPid = launch(weakScript, needThredz, node.name);
+	}
+
+	function growStep(node) {
+		var s = node.server;
+		var moneyNow = s.moneyAvailable;
+		var maxMultiply = s.moneyMax / moneyNow;
+		var needThredz = ns.growthAnalyze(node.name, maxMultiply, ns.getServer("home").cpuCores); // assuming we're running on home?
+		needThredz = thr(needThredz);
+
+		node.moneyWas = moneyNow;
+		node.stepStarted = new Date();
+		node.stepWait = ns.getGrowTime(node.name);
+		node.stepThredz = needThredz;
+		node.waitingForPid = launch(growScript, needThredz, node.name);
+	}
+
+	function hackStep(node) {
+		var s = node.server;
+
+		var moneyNow = ns.getServerMoneyAvailable(node.name);
+		var needThredz = thr(ns.hackAnalyzeThreads(node.name, moneyNow * 0.5));
+
+		node.moneyWas = moneyNow;
+		node.stepStarted = new Date;
+		node.stepWait = ns.getHackTime(node.name);
+		node.stepThredz = needThredz;
+		node.waitingForPid = launch(hackScript, needThredz, node.name);
+	}
+
+	function runNextStep(node) {
+		var s = node.server;
+		if (!s.hasAdminRights) { return; }
+		var nx = nextStep(s);
+		if (node.step == "grow" && nx != "grow") {
+			node.lastGrow = s.moneyAvailable - node.moneyWas;
+		} else if (node.step == "hack" && nx != "hack") {
+			node.lastHack = node.moneyWas - s.moneyAvailable;
+		}
+		node.step = nx;
+		if (nx == "weak") {
+			weakStep(node);
+
+		} else if (nx == "grow") {
+			growStep(node);
+
+		} else if (nx == "hack") {
+			hackStep(node);
+		}
+	}
+
+	/* @param {Node} node
+		   */
+	function step(node) {
+		var pid = node.waitingForPid;
+		if (pid == null || !ns.isRunning(pid)) {
+			node.waitingForPid = null;
+			runNextStep(node);
 		}
 	}
 
@@ -93,6 +196,7 @@ export async function main(ns) {
 		}
 		var node = data[srv.name];
 		node.server = s;
+		step(node);
 	}
 
 	function rebuildLogs() {
@@ -100,7 +204,7 @@ export async function main(ns) {
 		for (var name in data) {
 			var node = data[name];
 			var s = node.server; /* {Server} */
-			ns.print("[", name.padStart(20, ' '), " ] ", serverStatus(s));
+			ns.print("[", name.padStart(20, ' '), " ] ", serverStatus(node, s));
 		}
 	}
 
@@ -117,6 +221,6 @@ export async function main(ns) {
 		checkPrograms();
 		netTraverse(ns, visitor);
 		rebuildLogs();
-		await ns.sleep(100);
+		await ns.sleep(200);
 	}
 }

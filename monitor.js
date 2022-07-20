@@ -1,4 +1,4 @@
-import { deployScripts, waitForProcess, getMinThreadsToWeaken } from "/lib.js"
+import { deployScripts, waitForProcess, getMinThreadsToWeaken, getAttackers, netTraverse } from "/lib.js"
 
 /** @param {NS} ns */
 export async function main(ns) {
@@ -6,14 +6,46 @@ export async function main(ns) {
 
 	ns.disableLog("sleep");
 
-	var params = ns.flags([["target", "n00dles"], ["maxram", "max"], ["attackfrom", ""], ["minmon", 0.8]])
+	var params = ns.flags([
+		["target", "n00dles"],
+		["maxram", "max"],
+		["attackfrom", "home"],
+		["minmon", 0.8],
+		["all", false]])
+
 	ns.print("monitor params are ", params);
 
+	if (params.all) {
+		var attackers = getAttackers(ns);
+		var f = function(node, ctl) {
+			if (ns.hasRootAccess(node.name)) {
+				var maxMon = ns.getServerMaxMoney(node.name);
+				var hackers = attackers[node.name] || [];
+				if (maxMon > 0 && hackers.length == 0) {
+					ns.tprint("attacking ", node.name,
+						" from ", params.attackfrom,
+						" with ", params.maxram, "G ram");
+
+					ns.exec(ns.getScriptName(), ns.getHostname(), 1,
+						"--attackfrom", params.attackfrom,
+						"--maxram", params.maxram,
+						"--target", node.name);
+				}
+			} else {
+				ctl.prune();
+			}
+		}
+		netTraverse(ns, f);
+		ns.exit();
+	}
+
 	var target = params.target;
-	var attackServer = ns.getHostname();
 	if (params.attackfrom != "" && params.attackfrom != null) {
-		attackServer = params.attackfrom;
+		var attackServer = params.attackfrom;
 		await deployScripts(ns, attackServer);
+	} else {
+		ns.tprint("please provide attack server name");
+		ns.exit();
 	}
 
 	ns.print("Running monitor with target ", target, " on ", attackServer);
