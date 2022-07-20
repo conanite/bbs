@@ -16,16 +16,16 @@ export async function main(ns) {
 	var crackablePorts = 0;
 	var data = {};
 
-	function findServerWithRam(amount) {
+	async function findServerWithRam(amount) {
 		var found = null;
 		var f = function (node, ctl) {
 			var s = ns.getServer(node.name);
-			if (s.maxRam - s.ramUsed > amount) {
+			if (s.hasAdminRights && (s.maxRam - s.ramUsed > amount)) {
 				ctl.quit();
 				found = s;
 			}
 		}
-		netTraverse(ns, f);
+		await netTraverse(ns, f);
 		return found;
 	}
 
@@ -38,16 +38,20 @@ export async function main(ns) {
 	 * @return {number} - the pid of the process if created
 	 *
 	 */
-	function launch(scriptName, thredz, ...args) {
+	async function launch(node, scriptName, thredz, ...args) {
 		var ram = requiredRamForScript(scriptName, thredz);
-		var s = findServerWithRam(ram);
-		if (s == null && thredz > 2) {
-			return launch(scriptName, Math.floor(thredz / 2));
-		} else if (thredz > 0) {
-			if (!ns.fileExists(scriptName, s.hostname)) {
-				ns.scp(scriptName, "home", s.hostname);
+		var s = await findServerWithRam(ram);
+		if (s == null) {
+			if (thredz > 2) {
+				return await launch(node, scriptName, Math.floor(thredz / 2), ...args);
 			}
-			return ns.exec(scriptName, s.hostname, thredz, ...args);
+		} else if (thredz >= 1) {
+			if (!ns.fileExists(scriptName, s.hostname)) {
+				await ns.scp(scriptName, "home", s.hostname);
+			}
+			node.launchThredz = thredz;
+			node.launchServer = s.hostname;
+			return ns.exec(scriptName,s.hostname,thredz,...args);
 		}
 	}
 
@@ -90,6 +94,11 @@ export async function main(ns) {
 		check += ("D" + dif(server.hackDifficulty) + "/" + dif(server.minDifficulty)).padEnd(8, ' ');
 		if (node.step != null) {
 			check += " " + node.step + " ";
+			if (node.launchServer != null) {
+				check += (node.launchServer + ":" + node.launchThredz + "T").padEnd(20, ' ')
+			} else {
+				check += '                    ';
+			}
 			if (node.stepStarted != null && node.stepWait != null) {
 				var elapsed = new Date() - node.stepStarted;
 				var remaining = node.stepWait - elapsed;
@@ -127,17 +136,18 @@ export async function main(ns) {
 			return Math.floor(n);
 		}
 	}
-	function weakStep(node) {
+
+	async function weakStep(node) {
 		var s = node.server;
 		var needThredz = thr(getMinThreadsToWeaken(ns, node.name));
 		node.stepStarted = new Date();
 		node.stepWait = ns.getWeakenTime(node.name);
 		node.stepThredz = needThredz;
 		node.weakWas = s.hackDifficulty;
-		node.waitingForPid = launch(weakScript, needThredz, node.name);
+		node.waitingForPid = await launch(node, weakScript, needThredz, node.name);
 	}
 
-	function growStep(node) {
+	async function growStep(node) {
 		var s = node.server;
 		var moneyNow = s.moneyAvailable;
 		var maxMultiply = s.moneyMax / moneyNow;
@@ -148,10 +158,10 @@ export async function main(ns) {
 		node.stepStarted = new Date();
 		node.stepWait = ns.getGrowTime(node.name);
 		node.stepThredz = needThredz;
-		node.waitingForPid = launch(growScript, needThredz, node.name);
+		node.waitingForPid = await launch(node, growScript, needThredz, node.name);
 	}
 
-	function hackStep(node) {
+	async function hackStep(node) {
 		var s = node.server;
 
 		var moneyNow = ns.getServerMoneyAvailable(node.name);
@@ -180,10 +190,10 @@ export async function main(ns) {
 		node.stepStarted = new Date;
 		node.stepWait = ns.getHackTime(node.name);
 		node.stepThredz = needThredz;
-		node.waitingForPid = launch(hackScript, needThredz, node.name);
+		node.waitingForPid = await launch(node, hackScript, needThredz, node.name);
 	}
 
-	function runNextStep(node) {
+	async function runNextStep(node) {
 		var s = node.server;
 		if (!s.hasAdminRights) { return; }
 		var nx = nextStep(s);
@@ -194,27 +204,27 @@ export async function main(ns) {
 		}
 		node.step = nx;
 		if (nx == "weak") {
-			weakStep(node);
+			await weakStep(node);
 
 		} else if (nx == "grow") {
-			growStep(node);
+			await growStep(node);
 
 		} else if (nx == "hack") {
-			hackStep(node);
+			await hackStep(node);
 		}
 	}
 
 	/* @param {Node} node
 		   */
-	function step(node) {
+	async function step(node) {
 		var pid = node.waitingForPid;
 		if (pid == null || !ns.isRunning(pid)) {
 			node.waitingForPid = null;
-			runNextStep(node);
+			await runNextStep(node);
 		}
 	}
 
-	function visitor(srv, ctl) {
+	async function visitor(srv, ctl) {
 		var s = ns.getServer(srv.name);
 		if (s.purchasedByPlayer || s.moneyMax <= 0) { return; }
 		if (data[srv.name] == null) {
@@ -222,7 +232,7 @@ export async function main(ns) {
 		}
 		var node = data[srv.name];
 		node.server = s;
-		step(node);
+		await step(node);
 	}
 
 	function rebuildLogs() {
@@ -244,9 +254,13 @@ export async function main(ns) {
 	}
 
 	while (true) {
+		// ns.tprint("checkprograms")
 		checkPrograms();
-		netTraverse(ns, visitor);
+		// ns.tprint("traverse")
+		await netTraverse(ns, visitor);
+		// ns.tprint("write log")
 		rebuildLogs();
-		await ns.sleep(200);
+		// ns.tprint("sleep")
+		await ns.sleep(2000);
 	}
 }

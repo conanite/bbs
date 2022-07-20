@@ -194,7 +194,7 @@ export function getAttackers(ns) {
  *  @param {NS} ns
  *  @param {function} f - a function to call with each discovered server name
  */
-export function netTraverse(ns, f) {
+export async function netTraverse(ns, f) {
   var prune = false;
   var quit = false;
   var ctl = {
@@ -206,11 +206,11 @@ export function netTraverse(ns, f) {
   var visited = {};
   while (queue.length > 0 && !quit) {
     var s = queue.shift();
-    f(s, ctl);
+    await f(s, ctl);
     if (prune) {
       prune = false;
     } else {
-      for (let neighbour of ns.scan(s.name)) {
+      for (let neighbour of await ns.scan(s.name)) {
         if (visited[neighbour] == null) {
           visited[neighbour] = true;
           queue.push({ name: neighbour, parent: s });
