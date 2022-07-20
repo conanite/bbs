@@ -42,8 +42,7 @@ export async function deployScripts(ns, dest) {
  *  @param {string} target - the name of the server to crack
 */
 export function crack(ns, target) {
-  var s = ns.getServer(target);
-  if (s.hasAdminRights) { return; }
+  if (ns.hasRootAccess(target)) { return; }
   ns.print("crack target is ", target);
 
   if (ns.fileExists("BruteSSH.exe", "home")) { ns.brutessh(target); }
@@ -54,8 +53,7 @@ export function crack(ns, target) {
 
   ns.nuke(target);
 
-  s = ns.getServer(target); // need to update it
-  if (s.hasAdminRights) {
+  if (ns.hasRootAccess(target)) {
     ns.toast("cracked " + target);
   } else {
     ns.toast("failed to crack " + target);
