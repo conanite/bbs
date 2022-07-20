@@ -93,16 +93,23 @@ export async function main(ns) {
 			if (node.stepStarted != null && node.stepWait != null) {
 				var elapsed = new Date() - node.stepStarted;
 				var remaining = node.stepWait - elapsed;
-				check += ("" + sec(remaining / 1000)).padStart(10, ' ');
+				check += ("" + Math.floor(remaining / 1000)).padStart(5, ' ');
 				check += ("thr:" + node.stepThredz).padStart(12, ' ');
 			}
 		}
+		check += " LGR";
 		if (node.lastGrow != null) {
-			check += " LGR" + num(node.lastGrow).padStart(12, ' ');
+			check += num(node.lastGrow).padStart(10, ' ');
+		} else {
+			check += '          ';
 		}
+		check += " LHK";
 		if (node.lastHack != null) {
-			check += " LHK" + num(node.lastHack).padStart(12, ' ');
+			check += num(node.lastHack).padStart(10, ' ');
+		} else {
+			check += '          ';
 		}
+		check += node.hackmsg;
 		return check;
 	}
 
@@ -148,7 +155,26 @@ export async function main(ns) {
 		var s = node.server;
 
 		var moneyNow = ns.getServerMoneyAvailable(node.name);
-		var needThredz = thr(ns.hackAnalyzeThreads(node.name, moneyNow * 0.5));
+
+		if (node.lastGrow != null) {
+			var hackAmount = 1.1 * (moneyNow / s.moneyMax) * node.lastGrow;
+			node.hackmsg = " hack%=" + Math.floor(100 * (1.1 * (moneyNow / s.moneyMax)));
+			if (hackAmount > moneyNow) {
+				hackAmount = (moneyNow / s.moneyMax) * node.lastGrow;
+				node.hackmsg = " 1.1 too much, hack%=" + Math.floor(100 * (moneyNow / s.moneyMax));
+			}
+			if (hackAmount > moneyNow) { 
+				node.hackmsg = " still too much, hack%=" + Math.floor(100 * 0.5);
+				hackAmount = moneyNow * 0.5; 
+			}
+		} else {
+			node.hackmsg = " ?? last grow, hack%=" + Math.floor(100 * 0.5);
+			var hackAmount = moneyNow * 0.5;
+		}
+
+		node.hackmsg += (" " + num(hackAmount));
+		var needThredz = thr(ns.hackAnalyzeThreads(node.name, hackAmount));
+		node.hackmsg += (" T" + needThredz);
 
 		node.moneyWas = moneyNow;
 		node.stepStarted = new Date;
