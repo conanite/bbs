@@ -1,12 +1,31 @@
-import * as lib from 'lib.js'
+import { GB, buyServer } from '/lib.js'
 
 /** @param {NS} ns */
 export async function main(ns) {
-	if (ns.args[0] == 'sweep') {
-		lib.deleteUnusedServers(ns);
+	function g(n) { return ns.nFormat(n * GB, "0ib"); }
+	function num(n) { return ns.nFormat(n, "$0.000a"); }
+
+	if (ns.args[0] == "cost" && ns.args.length == 1) {
+		var cash = ns.getPlayer().money;
+		var min = cash / 3;
+		var max = cash * 3;
+		for (var i = 1; i <= 20 ; i += 1) {
+			var costInfo = buyServer(ns,"cost", i);
+			var cost = costInfo.cost;
+			if (cost >= min && cost <= max) {
+			    ns.tprint("cost of server size ", i, " (", g(costInfo.ram), ") is ", num(cost));
+			}
+		}
 		ns.exit();
-	} else if (ns.args[0] == "work") {
-		lib.showPurchasedServerWork(ns);
+	}
+
+	if (ns.args[0] == "prices") {
+		for (var i = 1; i <= 20 ; i += 1) {
+			var costInfo = buyServer(ns,"cost", i);
+			var cost = costInfo.cost;
+		    ns.tprint("cost of server size ", i, " (", g(costInfo.ram), ") is ", num(cost));
+		}
+		ns.exit();
 	}
 
 	if (ns.args.length < 2) {
@@ -16,7 +35,6 @@ export async function main(ns) {
 		ns.exit();
 	}
 
-    
 	var name = ns.args[0];
 
     if (name == "kill") {
@@ -24,9 +42,10 @@ export async function main(ns) {
 		ns.killall(target);
 		ns.deleteServer(target);
 		ns.tprint("killed purchased server ", target);
+
 	} else {
 	    var size = parseInt(ns.args[1]);
-    	lib.buyServer(ns, name, size);
+	   	buyServer(ns, name, size);
 	}
 
 }
