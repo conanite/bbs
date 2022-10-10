@@ -20,7 +20,10 @@ export async function main(ns) {
 		"4sigma",
 		"megacorp",
 		"ecorp",
-		"w0r1d_d43m0n"
+		"fulcrumassets",
+		"fulcrumtech",
+		"b-and-a",
+		// "w0r1d_d43m0n"
 	];
 
 	var crackablePorts = 0;

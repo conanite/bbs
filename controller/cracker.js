@@ -1,5 +1,5 @@
 import { crack, isCracked, isCrackable } from 'lib.js'
-import { netTraverse } from 'net-traverse.js'
+import { netTraverse } from '/lib/net-traverse.js'
 
 /** @param {NS} ns */
 export async function main(ns) {

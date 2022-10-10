@@ -1,4 +1,4 @@
-import { netTraverse } from "/net-traverse.js";
+import { netTraverse } from "/lib/net-traverse.js";
 
 export const GB = 1024 * 1024 * 1024;
 
@@ -65,11 +65,12 @@ export async function loop(ns) {
 		if (spindata) {
 			check += " spin ";
 			var sd = spindata;
-			check += g(sd.ram).padStart(8) + ' ';
+			check += g(sd.ram).padStart(8) + '/' + g(sd.wantsRam).padEnd(8);
 			check += ("PID:" + sd.pid + " ").padStart(9, ' ') + ' ';
 			check += ("Q:" + sd.queue.length).padStart(6, ' ') + "  ";
 			check += "" + num(sd.income).padStart(9, ' ') + "  ";
-			check += "SC:" + dec(sd.scaling).padStart(6, ' ') + "  ";
+			// check += "SC:" + dec(sd.scaling).padStart(6, ' ') + "  ";
+			check += "$/R:" + num(sd.income / sd.wantsRam).padStart(9, ' ') + "  ";
 		}
 
 		if (server.requiredHackingSkill > ns.getHackingLevel()) {
@@ -113,6 +114,18 @@ export async function loop(ns) {
 				log.push("** NO NAME FOR ", srv.toString());
 			}
 		}
+
+		var spinlist = Object.values(spinners).sort(function(s0, s1) { 
+			return (s0.income / s0.wantsRam) - (s1.income / s1.wantsRam);
+		});
+
+		log.push("------")
+		for (var spinner of spinlist) {
+			log.push(spinner.target.padStart(19, ' ') + " " +
+					num(spinner.income).padStart(9, ' ') + " " +
+					g(spinner.wantsRam).padStart(8) + " " +
+					num(spinner.income / spinner.wantsRam).padStart(9, ' '));
+		}
 	}
 
 	async function checkReadPort() {
@@ -143,5 +156,5 @@ export async function loop(ns) {
 	await checkReadPort();
 	await netTraverse(ns, visitor);
 	rebuildLogs();
-	ns.write("/monitor/000-hack-monitor.txt", log.join("\n"), "w");
+	ns.write("/monitor/100-hack-monitor.txt", log.join("\n"), "w");
 }

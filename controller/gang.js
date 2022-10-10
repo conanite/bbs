@@ -21,6 +21,7 @@ export async function main(ns) {
 	var gf = ns.formulas.gang;
 	var gi = gang.getGangInformation();
 	var tasks = gang.getTaskNames();
+	var focus = ns.read("gang-focus.txt");
 
 	function log(...args) { logs.push(args.join("")); }
 
@@ -28,6 +29,30 @@ export async function main(ns) {
 		memberLogs[memb] ||= ""; 
 		memberLogs[memb] += args.join(""); 
 	}
+
+	function equip(memb) {
+		var spending = 0;
+		var itemCount = 0;
+		var equips = gang.getEquipmentNames();
+		var gm = gang.getMemberInformation(memb);
+		var gm_eqs = gm.upgrades + gm.augmentations;
+		for (var e of equips) {
+			if (!gm_eqs.includes(e)) {
+				var price = gang.getEquipmentCost(e);
+				if (price < ns.getPlayer().money) {
+					// ns.tprint("Purchasing equipment : ", e, ", with price : ", num(price), " for ", gm.name);
+					var bought = gang.purchaseEquipment(gm.name, e);
+					if (bought) { 
+						spending += price;
+						itemCount++;
+					}
+				}			
+			}
+		}	
+		log("spent ", num(spending), " on ", itemCount, " items for ", memb);
+	}
+
+
 
 	function ascInfo(exp, pts, mult) {
 		var asc_pts_gain = gf.ascensionPointsGain(exp);
@@ -91,15 +116,16 @@ export async function main(ns) {
 
 	var now = Math.floor(new Date().getTime() / 5000); // 5-second ticks
 
-	if (now % 12 != 0) { return; }
+	if (now % 3 != 0) { return; } // every 15 seconds
 
 	if (ns.read("gang-controller.txt") == now.toString()) { return; }
 
 	ns.write("gang-controller.txt", now.toString(), "w");
 
-	var timeToAsc = (now % 48 == 0); // every 4 minutes
+	var timeToAsc = (now % 12 == 0); // every 1 minute
 
 	log("now is ", now, " time to asc is ", timeToAsc);
+	if (focus) { log("focus is ", focus); }
 	
 	var members = gang.getMemberNames();
 
@@ -109,8 +135,9 @@ export async function main(ns) {
 	if (newMember) {
 		members = gang.getMemberNames();
 		log("recruited new member, member count is now ", members.length);
+		equip(newName);
 	} else {
-		log("didn't recruit anybody, member count is still ", members.length);
+		log("didn't recruit anybody, member count is ", members.length);
 	}
 
 	var bestAscGrowth = 0;
@@ -129,6 +156,8 @@ export async function main(ns) {
 
 
 	for (var memb of members) {
+		if (memb == bestAscMember) { logMemb(memb, " *ASC* "); }
+		
 		var gm = gang.getMemberInformation(memb);
 		if (gm.agi_exp < 4000 || gm.dex_exp < 4000) {
 			logMemb(memb, " needs to work on combat a little");
@@ -136,12 +165,15 @@ export async function main(ns) {
 		} else if (gm.cha_exp < 4000) {
 			logMemb(memb, " needs to work a bit on charisma");
 			gang.setMemberTask(memb, "Train Charisma");
-		} else if (timeToAsc && memb == bestAscMember && bestAscGrowth > 0.1) {
+		} else if (timeToAsc && memb == bestAscMember && bestAscGrowth > 0.08) {
 			logMemb(memb, " ascends to a higher plane of existence");
 			gang.ascendMember(memb);
+			equip(memb);
 			gang.setMemberTask(memb, "Train Charisma");
+		} else if (focus == "rep") {
+			logMemb(memb, " is a terror to all");
+			gang.setMemberTask(memb, "Terrorism");
 		} else {
-			if (memb == bestAscMember) { logMemb(memb, " *ASC* "); }
 			setToBestTask(memb);
 		}
 

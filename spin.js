@@ -1,26 +1,22 @@
-import { getRamInfo, GB, Node, getMyProcess, getThreadsToWeakenByAmount, launch, getMinThreadsToWeaken } from "/lib.js"
+import { getRamInfo, GB, Node, launch } from "/lib.js"
+
+import { getMinThreadsToWeaken, usableAttackServers, getMaxRamDemand } from "/lib/attack.js";
+
+import { MIN_INTERVAL, threadsToWeaken, threadsToGrow, threadsToHack } from "/lib/attack.js";
+import { hackScript, weakScript, growScript, scriptRams } from "/lib/attack.js"
 
 /** @param {NS} ns */
 export async function main(ns) {
   ns.disableLog("ALL");
 
-  const MIN_INTERVAL = 4000;
-  const STEP_GAP = 400;
-  const MAX_BATCHES = 18;
-
-  const hackScript = "hack-target.js";
-  const weakScript = "weak-target.js";
-  const growScript = "grow-target.js";
-
-  const hackRam = ns.getScriptRam(hackScript);
-  const weakRam = ns.getScriptRam(weakScript);
-  const growRam = ns.getScriptRam(growScript);
+  const STEP_GAP = 200;
+  const MAX_BATCHES = 40;
 
   var lastTargetMoment = 0;
   var scaling = 1;
   var batchCount = 0;
   var bestWeakTime = 1024 * 1024;
-  var myProc = await getMyProcess(ns);
+  var myProc = ns.getRunningScript();
   var target = ns.args[0];
 
   var totalRamDemand = 1024 * 1024 * 1024; // random initial value, should be quickly overwritten by peeking port 3 as writen by mm.js
@@ -35,6 +31,10 @@ export async function main(ns) {
   var approxInterval = 0;
   var noNewBatch = [];
 
+  var totalIncomeTime = 0;
+  var totalIncomeAtTime = 0;
+
+  const rams = scriptRams(ns);
 
   function formatNaN(n) { if (isNaN(n)) { return "NaN" } else { return null; } }
   function g(n) { return formatNaN(n) || ns.nFormat(n * GB, "0ib"); }
@@ -43,53 +43,16 @@ export async function main(ns) {
   function dec(n) { return formatNaN(n) || ns.nFormat(n, "0.000"); }
   function sec(n) { return formatNaN(n) || ns.nFormat(n / 1000, "0.0"); }
 
-  function thr(n) {
-    if (n < 1) {
-      return 1;
-    } else {
-      return Math.round(n);
-    }
-  }
-
   function weakTime() {
     var wt = ns.getWeakenTime(target);
     if (wt < bestWeakTime) { bestWeakTime = wt; }
     return bestWeakTime;
   }
-  /**
-   *  @param {Server} s
-   */
-  function threadsToGrow(s) {
-    return thr(ns.growthAnalyze(s.hostname, 50, 1)); // assume there's only 2% of max present
-  }
 
-  /**
-   *  @param {Server} s
-   * 
-   *  scaled by 2.0 for BN3.1 
-   */
-  function threadsToWeaken(s) {
-    var minDiff = s.minDifficulty;
-    return thr(2 * getThreadsToWeakenByAmount(ns, minDiff));
-  }
-
-  /**
-   *  @param {Server} s
-   */
-  function threadsToHack(s) {
-    var hackPower = ns.hackAnalyze(s.hostname);
-    return thr(0.92 / hackPower); // aim for 92% of available so #grow can bring us easily back to 100%
-  }
 
 
   function getRamRequirement(target) {
-    var s = ns.getServer(target);
-    var ramW0 = weakRam * threadsToWeaken(s) * weakTime();
-    var ramH1 = hackRam * threadsToHack(s) * ns.getHackTime(target);
-    var ramW2 = ramW0;
-    var ramG3 = growRam * threadsToGrow(s) * ns.getGrowTime(target);
-    var ramW4 = ramW0;
-    return (ramW0 + ramH1 + ramW2 + ramG3 + ramW4) / MIN_INTERVAL;
+    return getMaxRamDemand(ns, target, weakTime(), rams);
   }
 
   /**
@@ -102,10 +65,10 @@ export async function main(ns) {
     var gt = ns.getGrowTime(target);
     var batchLifetime = Math.max(ht, wt, gt);
 
-    var ramW0 = weakRam * threadsToWeaken(s) * wt;
-    var ramH1 = hackRam * threadsToHack(s) * ht;
+    var ramW0 = rams.weak * threadsToWeaken(ns, s) * wt;
+    var ramH1 = rams.hack * threadsToHack(ns, s) * ht;
     var ramW2 = ramW0;
-    var ramG3 = growRam * threadsToGrow(s) * gt;
+    var ramG3 = rams.grow * threadsToGrow(ns, s) * gt;
     var ramW4 = ramW0;
     return (ramW0 + ramH1 + ramW2 + ramG3 + ramW4) / batchLifetime;
   }
@@ -213,7 +176,7 @@ export async function main(ns) {
 
         // ns.print("Visit ", target, " 0:", this.step0w, ", 1:", this.step1h, ", 2:", this.step2w, ", 3:", this.step3g)
         if (this.step0w == null) {
-          var needThredz = threadsToWeaken(s) * this.scale;
+          var needThredz = threadsToWeaken(ns, s) * this.scale;
           if (needThredz < 1) { needThredz = 1; }
           var weakTime = ns.getWeakenTime(target);
           var targetMoment = rightNow + weakTime;
@@ -221,7 +184,7 @@ export async function main(ns) {
           lastTargetMoment = targetMoment;
           lastLaunch = now;
           this.destinationTime = new Date(targetMoment);
-          this.step0w = newNode(target, needThredz, targetMoment, weakRam);
+          this.step0w = newNode(target, needThredz, targetMoment, rams.weak);
           await launch(ns, this.step0w, weakScript, needThredz, target, this.batchNumber, "step0w");
         }
 
@@ -237,9 +200,9 @@ export async function main(ns) {
           var finishTime = rightNow + hTime;
 
           if (finishTime >= targetMoment && finishTime < tooLate) {
-            var needThredz = threadsToHack(s) * this.scale;
+            var needThredz = threadsToHack(ns, s) * this.scale;
             if (needThredz < 1) { needThredz = 1; }
-            this.step1h = newNode(target, needThredz, targetMoment, hackRam);
+            this.step1h = newNode(target, needThredz, targetMoment, rams.hack);
             if (this.step0w.launchThredz > 0) {
               await launch(ns, this.step1h, hackScript, needThredz, target, this.batchNumber, "step1h");
             }
@@ -262,9 +225,9 @@ export async function main(ns) {
           var finishTime = rightNow + wTime;
 
           if (finishTime >= targetMoment && finishTime < tooLate) {
-            var needThredz = threadsToWeaken(s) * this.scale;
+            var needThredz = threadsToWeaken(ns, s) * this.scale;
             if (needThredz < 1) { needThredz = 1; }
-            this.step2w = newNode(target, needThredz, targetMoment, weakRam);
+            this.step2w = newNode(target, needThredz, targetMoment, rams.weak);
             await launch(ns, this.step2w, weakScript, needThredz, target, this.batchNumber, "step2w");
           }
         }
@@ -275,10 +238,10 @@ export async function main(ns) {
           var finishTime = rightNow + gTime;
 
           if (finishTime >= targetMoment && finishTime < tooLate) {
-            var needThredz = threadsToGrow(s) * this.scale;
+            var needThredz = threadsToGrow(ns, s) * this.scale;
             if (needThredz < 1) { needThredz = 1; }
 
-            this.step3g = newNode(target, needThredz, targetMoment, growRam);
+            this.step3g = newNode(target, needThredz, targetMoment, rams.grow);
             if (this.step2w && this.step2w.launchThredz > 0) {
               await launch(ns, this.step3g, growScript, needThredz, target, this.batchNumber, "step3g");
             }
@@ -291,9 +254,9 @@ export async function main(ns) {
           var finishTime = rightNow + wTime;
 
           if (finishTime >= targetMoment && finishTime < tooLate) {
-            var needThredz = threadsToWeaken(s) * this.scale;
+            var needThredz = threadsToWeaken(ns, s) * this.scale;
             if (needThredz < 1) { needThredz = 1; }
-            this.step4w = newNode(target, needThredz, targetMoment, weakRam);
+            this.step4w = newNode(target, needThredz, targetMoment, rams.weak);
             await launch(ns, this.step4w, weakScript, needThredz, target, this.batchNumber, "step4w");
           }
         }
@@ -328,30 +291,6 @@ export async function main(ns) {
     return batches.reduce(function (sum, b) { return sum + b.ram(); }, 0);
   }
 
-  function isAttackServer(s) {
-    return s.purchasedByPlayer && (s.hostname.substring(0, 2) === "a-");
-  }
-
-  function isHacknetServer(s) {
-    return s.hostname.startsWith("hacknet");
-  }
-
-  function usableAttackServers(s) {
-    // return isAttackServer(s) || isHacknetServer(s) || s.hostname == 'home' || s.hasAdminRights;
-    return isAttackServer(s) || s.hostname == 'home' || (!isHacknetServer(s) && s.hasAdminRights);
-  }
-
-  async function waitForWeakTime(now) {
-    var until = now + (2 * MIN_INTERVAL);
-    var wt = ns.getWeakenTime(target);
-    var better = weakTime();
-    while (wt > (better * 1.1) && (new Date().getTime() < until)) {
-      await ns.sleep(5);
-      wt = ns.getWeakenTime(target);
-    }
-    return wt;
-  }
-
   async function maybeStartNewBatch(ri) {
     noNewBatch = [];
     var now = new Date().getTime();
@@ -380,11 +319,6 @@ export async function main(ns) {
     if (sinceLastLaunch > MIN_INTERVAL && (used < ramForMe) && (liveBatches < MAX_BATCHES) && timingIsRight) {
       scaling = scale;
       batches.push(new Batch(ns, target, scale));
-    // } else {
-    //   if (sinceLastLaunch <= MIN_INTERVAL) { noNewBatch.push("too soon"); }
-    //   if (used >= ramForMe) { noNewBatch.push("using too much mem"); }
-    //   if (liveBatches >= MAX_BATCHES) { noNewBatch.push("too many batches"); }
-    //   if (!timingIsRight) { noNewBatch.push("too early for previous batch"); }
     }
   }
 
@@ -414,6 +348,18 @@ export async function main(ns) {
 
     batches = batches.filter(function (b) { return !b.dead(); });
 
+    var rightNow = now.getTime();
+    var minute = Math.floor(rightNow / 60000);
+    if (minute > totalIncomeTime) {
+      totalIncomeTime = minute;
+      totalIncomeAtTime = ns.getRunningScript().onlineMoneyMade;
+    }
+
+
+    // var income = ns.getScriptIncome("spin.js", ns.getHostname(), ...ns.args);
+
+    // var incomeInterval = ((rightNow / 1000) - (60 * totalIncomeTime));
+    // var income = (ns.getRunningScript().onlineMoneyMade - totalIncomeAtTime) / incomeInterval;
     var income = ns.getScriptIncome("spin.js", ns.getHostname(), ...ns.args);
     // ns.print("queue length ", batches.length, " of max ", maxBatches);
     ns.print("queue length ", batches.length, " scaling ", dec(scaling));
@@ -444,6 +390,7 @@ export async function main(ns) {
       await ns.writePort(1, JSON.stringify({
         spinner: {
           ram: getMyUsedRam(),
+          wantsRam: wantsRam / 1.0,
           pid: myProc.pid,
           target: target,
           queue: times,
@@ -452,7 +399,7 @@ export async function main(ns) {
         }
       }));
 
-      var memNotify = { target: target, wants: (wantsRam / 1.0) };
+      var memNotify = { target: target, wants: (wantsRam / 1.0), income: income, pid: myProc.pid };
       await ns.writePort(2, JSON.stringify(memNotify));
 
       var peek3 = ns.peek(3);

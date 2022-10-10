@@ -6,10 +6,10 @@ export async function main(ns) {
 
 	var purchased = ns.args[0];
 	if (purchased == null) {
-		purchased = buyBiggestAffordableServer(ns, "w");
+		purchased = buyBiggestAffordableServer(ns, "w", []);
 	}
 	if (purchased != null) {
-		await ns.scp(script, purchased);
+		ns.scp(script, purchased);
 		var mem = ns.getScriptRam(script, purchased);
 		var thredz = ns.getServerMaxRam(purchased) / mem;
 

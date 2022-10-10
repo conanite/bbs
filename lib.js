@@ -1,4 +1,4 @@
-import { netTraverse } from "/net-traverse.js";
+import { netTraverse } from "/lib/net-traverse.js";
 
 export const GB = 1024 * 1024 * 1024;
 
@@ -67,22 +67,6 @@ export async function ispwned(ns, target) {
   var admin = await ns.hasRootAccess(target);
   var hackable = await ns.getHackingLevel() > await ns.getServerRequiredHackingLevel(target);
   return admin && hackable;
-}
-
-/*
- * @param {NS} ns
- * @return ProcessInfo for currently running process
- */
-export async function getMyProcess(ns) {
-  var processes = ns.ps(ns.getHostname());
-  var myScript = ns.getScriptName();
-  for (var i = 0; i < processes.length; i++) {
-    var proc = processes[i];
-    var fnmatch = (proc.filename == myScript);
-    var argsmatch = (JSON.stringify(proc.args) == JSON.stringify(ns.args)); // not beautiful but reasonably safe for an args array
-    if (fnmatch && argsmatch) { return proc; }
-  }
-  return null;
 }
 
 /*
@@ -166,21 +150,20 @@ export function biggestAffordableServer(ns) {
   for (var i = maxram; i > 1; i--) {
     var ram = Math.pow(2, i);
     var cost = ns.getPurchasedServerCost(ram);
-    if (!isNaN(cost) && cost < myMoney) { 
-      ns.tprint("biggest is ", i, " for ", cost);
-      return i; }
+    if (!isNaN(cost) && cost < myMoney) { return i; }
   }
   return 0;
 }
 
 /** @param {NS} ns */
-export function buyBiggestAffordableServer(ns, prefix) {
+export function buyBiggestAffordableServer(ns, prefix, logs) {
   var size = biggestAffordableServer(ns);
   if (size > 7) {
+    logs.push("buying new server of size " + size);
     var ram = Math.pow(2, size);
     var s = ns.purchaseServer(prefix + "-" + size, ram);
-    var cost = ns.nFormat(ns.getPurchasedServerCost(ram), "$0.000a");
-    ns.tprint("purchased server ", s, " with ", ram, "G RAM for ", cost, " and size ", size);
+    // var cost = ns.nFormat(ns.getPurchasedServerCost(ram), "$0.000a");
+    // ns.tprint("purchased server ", s, " with ", ram, "G RAM for ", cost, " and size ", size);
     return s;
   } else {
     return null;
@@ -226,30 +209,39 @@ export async function getSmallestPurchasedServer(ns, filter) {
 }
 
 /** @param {NS} ns */
-export async function manageAttackServers(ns, filter, poolsize, prefix) {
+export async function manageAttackServers(ns, filter, poolsize, prefix, logs) {
   var bnm = ns.getBitNodeMultipliers();
   var maxServers = (25 * bnm.PurchasedServerLimit) - 8;
   if (poolsize < maxServers) {
     maxServers = poolsize;
   }
 
+  logs.push("max servers is " + maxServers);
+
   deleteScheduledServers(ns);
 
   var allPurchasedServers = ns.getPurchasedServers().map(function (s) { return ns.getServer(s); });
 
+
   var attackServers = allPurchasedServers.filter(filter);
 
+  logs.push("found " + attackServers.length + " existing servers");
+
   if (attackServers.length < maxServers) {
-    buyBiggestAffordableServer(ns, prefix);
+    logs.push("buying a new server now if possible");
+    buyBiggestAffordableServer(ns, prefix, logs);
 
   } else {
     var smallest = await getSmallestPurchasedServer(ns, filter);
 
     var biggestAffordable = biggestAffordableServer(ns);
 
-    if (biggestAffordable > Math.log2(smallest.maxRam)) {
-      await ns.write("scheduled_for_destruction.txt", "true", "w");
-      await ns.scp("scheduled_for_destruction.txt", smallest.hostname);
+    if (smallest && biggestAffordable > Math.log2(smallest.maxRam)) {
+      logs.push("scheduling an existing server for deletion: " + smallest.hostname);
+      ns.write("scheduled_for_destruction.txt", "true", "w");
+      ns.scp("scheduled_for_destruction.txt", smallest.hostname);
+    } else {
+      logs.push("can't afford a new server just yet...");
     }
   }
 }
@@ -293,44 +285,6 @@ export function deleteUnusedServers(ns) {
     ns.tprint("no servers found to delete");
   }
 }
-
-/** @param {NS} ns
- *
- *  estimates the minimum number of threads required to weaken a target to minimum difficulty
- */
-export function getMinThreadsToWeaken(ns, target) {
-  var s = ns.getServer(target);
-
-  var currentDifficulty = s.hackDifficulty;
-  var minDifficulty = s.minDifficulty;
-  var diff = currentDifficulty - minDifficulty;
-
-  return getThreadsToWeakenByAmount(ns, diff);
-}
-
-/** @param {NS} ns
- *
- *  estimates the minimum number of threads required to weaken a target to minimum difficulty
- */
-export function getThreadsToWeakenByAmount(ns, amount) {
-  var max = 1000000;
-  var thredz = max / 2;
-  var min = 0;
-
-  while (max - min > 2) {
-    var decrease = ns.weakenAnalyze(thredz);
-    if (decrease > amount) { // too many threads
-      max = thredz;
-      thredz = thredz - ((thredz - min) / 2);
-    } else { // too few threads
-      min = thredz;
-      thredz = thredz + ((max - thredz) / 2);
-    }
-  }
-
-  return Math.floor(thredz);
-}
-
 
 /**
  *  @param {NS} ns

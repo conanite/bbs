@@ -34,7 +34,7 @@ export async function main(ns) {
 			corpns.upgradeOfficeSize(div.name, city, amount - availableSpace);
 		}
 
-		for (var i = 0 ; i < amount ; i++) {
+		for (var i = 0; i < amount; i++) {
 			corpns.hireEmployee(div.name, city);
 		}
 
@@ -43,18 +43,17 @@ export async function main(ns) {
 
 	function hire() {
 		var div = corpns.getDivision(ns.args[1]);
-		var amount = parseInt(ns.args[2]);
-		var job = ns.args[3];
-		for (var city of div.cities) {
-			var office = corpns.getOffice(div.name, city);
-			var jobs = office.employeeJobs;
-			var now = jobs[job];
-			if (now < amount) {
-				ns.tprint("hiring ", (amount - now), " new employees for ", job, "in office ", div.name, "/", city);
-				hireEmployees(div, city, job, (amount - now))
-			} else {
-				ns.tprint("office ", div.name, "/", city, " already has ", now, " employees doing ", job);
-			}
+		var city = ns.args[2];
+		var amount = parseInt(ns.args[3]);
+		var job = ns.args[4];
+		var office = corpns.getOffice(div.name, city);
+		var jobs = office.employeeJobs;
+		var now = jobs[job];
+		if (now < amount) {
+			ns.tprint("hiring ", (amount - now), " new employees for ", job, "in office ", div.name, "/", city);
+			hireEmployees(div, city, job, (amount - now))
+		} else {
+			ns.tprint("office ", div.name, "/", city, " already has ", now, " employees doing ", job);
 		}
 	}
 
@@ -75,28 +74,59 @@ export async function main(ns) {
 		}
 	}
 
+	function upsizeCity(div, amount, city) {
+		var office = corpns.getOffice(div.name, city);
+		var alreadySize = office.size;
+		if (amount > alreadySize) {
+			ns.tprint("upsizing ", div.name, "/", city);
+			corpns.upgradeOfficeSize(div.name, city, amount - alreadySize);
+		} else {
+			ns.tprint("already at size : ", div.name, "/", city);
+		}
+
+		var hired = office.employees.length;
+		if (amount > hired) {
+			var toHire = amount - hired;
+			ns.tprint("hiring ", toHire, " new employees in ", div.name, "/", city);
+			for (var i = 0; i < toHire; i++) {
+				corpns.hireEmployee(div.name, city);
+			}
+		} else {
+			ns.tprint("already at capacity : ", div.name, "/", city);
+		}
+
+	}
+
+	function buyUpgrades() {
+		var amount = parseInt(ns.args[1]);
+		var upgs = corpns.getUpgradeNames();
+		for (var i = 0; i < amount; i++) {
+			for (var upg of upgs) {
+				ns.tprint("about to upgrade ", upg);
+				if (upg != "Wilson Analytics" && upg != "DreamSense" && upg != "Project Insight") {
+					corpns.levelUpgrade(upg);
+				}
+			}
+		}
+	}
+
+	function advert() {
+		var div = corpns.getDivision(ns.args[1]);
+		var amount = parseInt(ns.args[2]);
+		for (var i = 0; i < amount; i++) {
+			corpns.hireAdVert(div.name);
+		}
+	}
+
 	function upsize() {
 		var div = corpns.getDivision(ns.args[1]);
 		var amount = parseInt(ns.args[2]);
-		for (var city of div.cities) {
-			var office = corpns.getOffice(div.name, city);
-			var alreadySize = office.size;
-			if (amount > alreadySize) {
-				ns.tprint("upsizing ", div.name, "/", city);
-				corpns.upgradeOfficeSize(div.name, city, amount - alreadySize);
-			} else {
-				ns.tprint("already at size : ", div.name, "/", city);
-			}
-
-			var hired = office.employees.length;
-			if (amount > hired) {
-				var toHire = amount - hired;
-				ns.tprint("hiring ", toHire, " new employees in ", div.name, "/", city);
-				for (var i = 0 ; i < toHire ; i++) {
-					corpns.hireEmployee(div.name, city);
-				}
-			} else {
-				ns.tprint("already at capacity : ", div.name, "/", city);
+		var city = ns.args[3];
+		if (city) {
+			upsizeCity(div, amount, city);
+		} else {
+			for (var city of div.cities) {
+				upsizeCity(div, amount, city);
 			}
 		}
 	}
@@ -104,9 +134,13 @@ export async function main(ns) {
 	if (ns.args[0] == "hire") {
 		hire();
 	} else if (ns.args[0] == "assign") {
-		assign();	
+		assign();
 	} else if (ns.args[0] == "upsize") {
-		upsize();	
+		upsize();
+	} else if (ns.args[0] == "upgrade") {
+		buyUpgrades();
+	} else if (ns.args[0] == "advert") {
+		advert();
 	} else {
 		info();
 	}

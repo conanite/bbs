@@ -6,7 +6,7 @@ export async function main(ns) {
 
 	var purchased = ns.args[0];
 	if (purchased == null) {
-		purchased = buyBiggestAffordableServer(ns, "sh");
+		purchased = buyBiggestAffordableServer(ns, "sh", []);
 	}
 	if (purchased != null) {
 		await ns.scp(script, purchased);
